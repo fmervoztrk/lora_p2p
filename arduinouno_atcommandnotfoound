@@ -1,0 +1,26 @@
+const int ledPin = 13; // LED pinini tanımla
+
+void setup() {
+  Serial.begin(9600); 
+  pinMode(ledPin, OUTPUT); 
+}
+
+void loop() {
+
+  while (Serial.available()) {
+    // Read the response from the LoRa module
+    String response = Serial.readStringUntil('\n');
+    delay(1000);
+    // Print the response to the serial monitor
+    Serial.println(response);
+
+    // If the response contains "P2P send Success", turn on the LED
+    if (response.indexOf("P2P send Success") != -1) {
+      digitalWrite(ledPin, HIGH); 
+      delay(500); 
+      digitalWrite(ledPin, LOW); 
+    }
+    delay(1000);
+  }
+  delay(1000);
+}
