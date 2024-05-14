@@ -1,0 +1,113 @@
+#include <TimeLib.h>
+#include <Time.h>
+#include <stdint.h>
+#include <string.h>
+
+bool rx_done = false;
+double myFreq = 868000000;
+uint16_t sf = 6, bw = 0, cr = 0, preamble = 4, txPower = 22;
+
+time_t t;
+struct tm *tm;
+
+// GPS verilerini tutmak için struct tanımlaması
+struct GPSData {
+    float latitude;
+    float longitude;
+} location;
+
+/*
+  typedef struct rui_lora_p2p_revc {
+  // Pointer to the received data stream
+  uint8_t *Buffer;
+  // Size of the received data stream
+  uint8_t BufferSize;
+  // Rssi of the received packet
+  int16_t Rssi;
+  // Snr of the received packet
+  int8_t Snr;
+  } rui_lora_p2p_recv_t;
+*/
+
+void recv_cb(rui_lora_p2p_recv_t data)
+{
+    rx_done = true;
+    if (data.BufferSize == 0) {
+        Serial.println("Empty buffer. \n");
+        return;
+    }
+    char buff[92];
+    sprintf(buff, "Incoming message, length: %d, RSSI: %d, SNR: %d/n",
+  	    data.BufferSize, data.Rssi, data.Snr);
+    Serial.println(buff);
+
+    GPSData received_location;
+    memcpy(&received_location, data.Buffer, sizeof(GPSData));
+
+    char relabuff[92];
+    char relobuff[92];
+    sprintf(relabuff, "Received Latitude: %f/n", received_location.latitude);
+    Serial.println(relabuff);
+    sprintf(relobuff, "Received Longitude: %f/n", received_location.longitude);
+    Serial.println(relobuff);
+    Serial.printf("Incoming message has been read.\n");
+
+}
+
+void send_cb(void)
+{
+    Serial.printf("P2P set Rx mode %s \n",
+		api.lorawan.precv(65534) ? "Success" : "Fail");
+}
+
+void setup()
+{
+    Serial.begin(9600);
+    delay(1000);
+    
+    if(api.lorawan.nwm.get() != 0)
+    {
+        Serial.printf("Set Node device work mode %s\r\n",
+            api.lorawan.nwm.set(0) ? "Success" : "Fail");
+        api.system.reboot();
+    }
+
+    api.lorawan.pfreq.set(myFreq);
+    api.lorawan.psf.set(sf);
+    api.lorawan.pbw.set(bw);
+    api.lorawan.pcr.set(cr);
+    api.lorawan.ppl.set(preamble);
+    api.lorawan.ptp.set(txPower);
+
+    api.lorawan.registerPRecvCallback(recv_cb);
+    api.lorawan.registerPSendCallback(send_cb);
+
+    Serial.printf("P2P set Rx mode %s \r\n",
+  		api.lorawan.precv(4000) ? "Success" : "Fail");
+    // let's kick-start things by waiting 3 seconds.
+
+
+}
+
+void loop()
+{
+    location.latitude = 41.0082;
+    location.longitude = 28.9784;
+    uint8_t byte_array[sizeof(struct GPSData)];
+    memcpy(byte_array, &location, sizeof(location));
+    bool send_result = false;
+
+    if (rx_done) {
+        rx_done = false;
+        while (!send_result) {
+            send_result = api.lorawan.psend(sizeof(byte_array), byte_array);
+            Serial.printf("P2P send %s \r\n", send_result ? "Success" : "Fail");
+            if (!send_result) {
+                Serial.printf("P2P finish Rx mode %s \r\n", api.lorawan.precv(0) ? "Success" : "Fail");
+//}
+                delay(1000);
+            }
+        }
+    }
+    delay(500);
+}
