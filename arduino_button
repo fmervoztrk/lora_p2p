@@ -1,0 +1,42 @@
+#include <SoftwareSerial.h>
+
+const int ledPin = 13;      // LED pinini tanımla
+const int buttonPin = 2;    // Buton pinini tanımla
+const int loraRxPin = 10;   // LoRa modülünün RX pini
+const int loraTxPin = 11;   // LoRa modülünün TX pini
+
+SoftwareSerial loraSerial(loraRxPin, loraTxPin); // LoRa modülü için yazılımsal seri port
+
+void setup() {
+  pinMode(buttonPin, INPUT);      // Buton pinini giriş olarak ayarla
+  pinMode(ledPin, OUTPUT);        // LED pinini çıkış olarak ayarla
+  Serial.begin(9600);             // Ana seri portu başlat
+  loraSerial.begin(9600);         // LoRa modülü seri portunu başlat
+}
+
+void loop() {
+  // Butona basılıp basılmadığını kontrol et
+  if (digitalRead(buttonPin) == HIGH) {
+    // Butona basıldıysa LoRa modülüne "1" değerini gönder
+    loraSerial.println("1");
+    Serial.println("1 değeri gönderildi");
+    delay(500); // Debounce için küçük bir gecikme
+  }
+
+  // Eğer LoRa modülünden veri varsa
+  while (loraSerial.available()) {
+    // LoRa modülünden gelen yanıtı oku
+    String response = loraSerial.readStringUntil('\n');
+    // Yanıtı ana seri monitöre yazdır
+    Serial.println(response);
+    // Eğer yanıt "P2P send Success" içeriyorsa, LED'i yak
+    if (response.indexOf("P2P send Success") != -1) {
+      digitalWrite(ledPin, HIGH); 
+      delay(500); 
+      digitalWrite(ledPin, LOW); 
+    }
+    delay(1000);
+  }
+
+  delay(100); // Döngü tekrarları arasında kısa bir gecikme
+}
