@@ -1,0 +1,28 @@
+#include <stdint.h>
+#include <string.h>
+
+void setup()
+{
+    Serial.begin(9600);
+    delay(1000);
+}
+
+void loop()
+{
+  // Arduino Uno'dan gelen mesajları oku
+  if (Serial.available() > 0) {
+    char received = Serial.read();
+    delay(100);  // Veri okunurken kısa bir bekleme
+
+    Serial.print("Gelen mesaj: ");
+    Serial.println(received);
+
+    // Gelen mesaj '1' ise 'ACK' mesajı gönder
+    if (received == '1') {
+      Serial.println("ACK");
+      Serial.println("ACK gönderildi");
+    }
+  }
+
+  delay(500);
+}
