@@ -1,0 +1,120 @@
+#include <TimeLib.h>
+#include <Time.h>
+#include <stdint.h>
+#include <string.h>
+
+bool rx_done = false;
+double myFreq = 868000000;
+uint16_t sf = 6, bw = 0, cr = 0, preamble = 4, txPower = 22;
+bool tx_mode = false;
+char received;
+
+time_t t;
+struct tm *tm;
+
+// GPS verilerini tutmak için struct tanımlaması
+struct GPSData {
+    float latitude;
+    float longitude;
+} location;
+
+/*
+  typedef struct rui_lora_p2p_revc {
+  // Pointer to the received data stream
+  uint8_t *Buffer;
+  // Size of the received data stream
+  uint8_t BufferSize;
+  // Rssi of the received packet
+  int16_t Rssi;
+  // Snr of the received packet
+  int8_t Snr;
+  } rui_lora_p2p_recv_t;
+*/
+
+void recv_cb(rui_lora_p2p_recv_t data)
+{
+    char buff[92];
+    sprintf(buff, "Incoming message, length: %d, RSSI: %d, SNR: %d",
+  	    data.BufferSize, data.Rssi, data.Snr);
+    Serial1.println(buff);
+
+    GPSData received_location;
+    memcpy(&received_location, data.Buffer, sizeof(GPSData));
+
+    char relabuff[92];
+    char relobuff[92];
+    sprintf(relabuff, "Received Latitude: %f", received_location.latitude);
+    Serial1.println(relabuff);
+    sprintf(relobuff, "Received Longitude: %f", received_location.longitude);
+    Serial1.println(relobuff);
+
+}
+
+void send_cb(void)
+{
+		api.lorawan.precv(65534);
+}
+
+void setup()
+{
+    Serial1.begin(9600);
+    delay(1000);
+    
+    if(api.lorawan.nwm.get() != 0)
+    {
+        api.lorawan.nwm.set(0);
+        api.system.reboot();
+    }
+
+    api.lorawan.pfreq.set(myFreq);
+    api.lorawan.psf.set(sf);
+    api.lorawan.pbw.set(bw);
+    api.lorawan.pcr.set(cr);
+    api.lorawan.ppl.set(preamble);
+    api.lorawan.ptp.set(txPower);
+
+    api.lorawan.registerPRecvCallback(recv_cb);
+    api.lorawan.registerPSendCallback(send_cb);
+
+    api.lorawan.precv(4000);
+
+}
+
+void loop()
+{
+
+  // Arduino Uno'dan gelen mesajları oku
+    if (Serial1.available() > 0) {
+        received = Serial1.read();
+        delay(1000);
+        Serial1.println(received);
+        // Gelen mesaj '1' ise verici moduna geç
+        if (received == '1') {
+            tx_mode = true;
+            Serial1.println("Switching to TX mode...");
+            Serial1.printf("P2P finish Rx mode %s\r\n", api.lorawan.precv(0) ? "Success" : "Fail");
+        }
+    }
+
+        location.latitude = 41.0082;
+        location.longitude = 28.9784;
+        uint8_t byte_array[sizeof(struct GPSData)];
+        memcpy(byte_array, &location, sizeof(location));
+        bool send_result = false;
+
+    if (tx_mode) {
+        while (!send_result) {
+            send_result = api.lorawan.psend(sizeof(byte_array), byte_array);
+            Serial1.printf("P2P send %s\n", send_result ? "Success" : "Fail");
+            if (!send_result) {
+                api.lorawan.precv(0);
+                delay(500);
+            } else {
+                tx_mode = false; // Tekrar alıcı moduna dönmek için
+                Serial1.printf("P2P start Rx mode %s\r\n", api.lorawan.precv(65534) ? "Success" : "Fail");
+            }
+            delay(500);
+          }
+      }
+      delay(500);
+}
